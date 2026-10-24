@@ -592,9 +592,15 @@
     <!-- YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
     <script>
+        // ⚠️ Is key ko Google Cloud Console me jaakar "HTTP referrer"/"YouTube Data API only" se restrict kar do.
         const YOUTUBE_API_KEY = "AIzaSyC0JlNaWVd3nCulfXhfelQ73kQgnO-O1xg";
 
-        // Rich pre-loaded real Indian videos so scrolling works immediately & looks 100% real
+        // ===== MAGIC SETTINGS =====
+        const START_SECONDS  = 35;    // video itne second se chalna shuru hoga
+        const MAX_SONG_WORDS = 5;     // trigger ke baad maximum itne shabd hi song-name maane jayenge
+        const PAUSE_MS       = 700;   // song-name bolne ke baad itni der ruka to turant search
+        const ARM_WINDOW_MS  = 6000;  // sirf trigger bola to agle itne ms me aaya shabd song-name
+
         const defaultVideos = [
             { id: "RLzC55ai0eo", title: "Heeriye (Official Video) Jasleen Royal ft Arijit Singh | Dulquer Salmaan", channel: "Jasleen Royal", views: "385M views • 1 year ago", duration: "3:19", color: "#e91e63" },
             { id: "BddP6PYo2gs", title: "Kesariya - Brahmāstra | Ranbir Kapoor | Alia Bhatt | Pritam | Arijit Singh", channel: "Sony Music India", views: "540M views • 2 years ago", duration: "4:28", color: "#ff5722" },
@@ -613,25 +619,31 @@
         let isPlayerReady = false;
         let candidateVideoQueue = [];
         let currentQueueIndex = 0;
-        let hasSeekedTo15 = false;
+        let hasSeeked = false;
+        const renderedLists = {};
 
-        // Render Feed Cards
+        // ================= FEED =================
+        function escapeHtml(s) {
+            return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
         function renderVideoList(containerId, videoArray) {
+            renderedLists[containerId] = videoArray;
             const container = document.getElementById(containerId);
-            container.innerHTML = videoArray.map(v => {
-                const initials = (v.channel || "YT").substring(0, 2).toUpperCase();
+            container.innerHTML = videoArray.map((v, idx) => {
+                const initials = escapeHtml((v.channel || "YT").substring(0, 2).toUpperCase());
                 const thumbUrl = v.thumb || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
                 return `
-                <div class="yt-video-card" onclick="playSpecificVideo('${v.id}', '${escapeQuotes(v.title)}', '${escapeQuotes(v.channel)}', 0)">
+                <div class="yt-video-card" onclick="playFromList('${containerId}', ${idx})">
                     <div class="yt-thumb-box">
                         <img src="${thumbUrl}" loading="lazy" alt="Thumb">
-                        <div class="yt-duration">${v.duration || '3:54'}</div>
+                        <div class="yt-duration">${escapeHtml(v.duration || '3:54')}</div>
                     </div>
                     <div class="yt-card-info">
                         <div class="yt-avatar" style="background:${v.color || '#d32f2f'}">${initials}</div>
                         <div class="yt-meta">
-                            <div class="yt-v-title">${v.title}</div>
-                            <div class="yt-v-sub">${v.channel} • ${v.views || '1.4M views • 3 weeks ago'}</div>
+                            <div class="yt-v-title">${escapeHtml(v.title)}</div>
+                            <div class="yt-v-sub">${escapeHtml(v.channel)} • ${escapeHtml(v.views || '1.4M views • 3 weeks ago')}</div>
                         </div>
                         <div class="yt-dots">⋮</div>
                     </div>
@@ -639,11 +651,12 @@
             }).join("");
         }
 
-        function escapeQuotes(str) {
-            return (str || "").replace(/'/g, "\'").replace(/"/g, "&quot;");
+        function playFromList(containerId, idx) {
+            const v = (renderedLists[containerId] || [])[idx];
+            if (!v) return;
+            playSpecificVideo(v.id, v.title, v.channel, 0);
         }
 
-        // Load initial feed immediately & then fetch live YouTube trending videos in background
         renderVideoList('home-feed-container', allFeedVideos);
         renderVideoList('related-feed-container', allFeedVideos.slice().reverse());
 
@@ -668,7 +681,7 @@
                                 channel: decodeEntities(item.snippet.channelTitle),
                                 thumb: item.snippet.thumbnails?.high?.url || `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
                                 views: `${Math.floor(Math.random() * 9 + 1)}.${Math.floor(Math.random() * 9)}M views • ${Math.floor(Math.random() * 11 + 1)} months ago`,
-                                duration: `${Math.floor(Math.random() * 3 + 3)}:${Math.floor(Math.random() * 49 + 10)}`,
+                                duration: `${Math.floor(Math.random() * 3 + 3)}:${String(Math.floor(Math.random() * 49 + 10))}`,
                                 color: colors[i % colors.length]
                             };
                         }).filter(v => v.id);
@@ -683,7 +696,6 @@
                 .catch(e => console.log("Live feed note:", e));
         }
 
-        // Load real trending feed on startup
         fetchLiveYouTubeFeed("all");
 
         function filterFeed(category, chipEl) {
@@ -693,51 +705,80 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // ================= YOUTUBE IFRAME PLAYER SETUP =================
+        // ================= YOUTUBE IFRAME PLAYER =================
         function onYouTubeIframeAPIReady() {
             ytPlayer = new YT.Player('yt-player-frame', {
                 height: '100%',
                 width: '100%',
                 videoId: 'BddP6PYo2gs',
-                playerVars: {
-                    'autoplay': 0,
-                    'controls': 1,
-                    'rel': 0,
-                    'playsinline': 1,
-                    'modestbranding': 1
-                },
+                playerVars: { autoplay: 0, controls: 1, rel: 0, playsinline: 1, modestbranding: 1 },
                 events: {
-                    'onReady': function() {
-                        isPlayerReady = true;
-                    },
-                    'onStateChange': function(event) {
-                        // Reinforce 15-second jump when magic song starts playing
-                        if (event.data === YT.PlayerState.PLAYING && !hasSeekedTo15 && magicTriggeredPlay) {
-                            hasSeekedTo15 = true;
+                    onReady: function () { isPlayerReady = true; },
+                    onStateChange: function (event) {
+                        // Safety net: agar video 35s se pehle se chala to seedha 35s par le jao
+                        if (event.data === YT.PlayerState.PLAYING && !hasSeeked && magicTriggeredPlay) {
+                            hasSeeked = true;
                             const cur = ytPlayer.getCurrentTime();
-                            if (cur < 13) {
-                                ytPlayer.seekTo(15, true);
+                            if (cur < START_SECONDS - 3) {
+                                ytPlayer.seekTo(START_SECONDS, true);
                             }
                         }
                     },
-                    'onError': function(err) {
-                        // If video #1 blocks embedding (Error 101/150), immediately play next result!
+                    onError: function (err) {
                         console.log("Player fallback triggered:", err.data);
                         if (currentQueueIndex + 1 < candidateVideoQueue.length) {
                             currentQueueIndex++;
-                            const nextVid = candidateVideoQueue[currentQueueIndex];
-                            loadAndPlayMagicVideo(nextVid, 15);
+                            loadAndPlayMagicVideo(candidateVideoQueue[currentQueueIndex], START_SECONDS);
                         }
                     }
                 }
             });
         }
 
-        // ================= ROBUST SPEECH RECOGNITION ENGINE =================
+        // ================= TRIGGER WORD DETECTION =================
+        // Trigger words (geet ab trigger nahi hai):
+        //   Chunaliyai (चुनलियई, चुनलियै), Chunliyai (चून्लियै), Chunlihi (चुनलीही, चुनलही), Chunalihi
+        // Matching "skeleton" par hoti hai: Hindi me saari matras/swar hata dete hain,
+        // Roman me a-e-i-o-u hata dete hain. Isse Chrome kuch bhi spelling likhe, pakad me aa jata hai:
+        //   चुनलियई / चुनलियै / चून्लियै / चुनलिया / चुनलीही / चुनलही / चुनालिही -> चनलय / चनलह
+        //   chunaliyai / chunliyai / chunlihi / chunalihi -> chnly / chnlh
+        const DEV_MARKS = /[ऀ-औऺ-्॑-ॗॢॣ]/g;
+
+        function isTriggerToken(tok) {
+            const t = String(tok).toLowerCase().replace(/[^ऀ-ॿa-z]/g, "");
+            if (t.length < 3) return false;
+            if (/[ऀ-ॿ]/.test(t)) {
+                const sk = t.replace(DEV_MARKS, "");
+                return /^[चछ]नल[यह]{0,2}$/.test(sk);
+            }
+            const sk = t.replace(/[aeiou]/g, "");
+            return /^c?hh?nl[yh]{0,2}$/.test(sk);
+        }
+
+        // Last trigger dhundo (ek shabd ya do chipke shabd jaise "चुन लिया")
+        function findTrigger(words) {
+            for (let i = words.length - 1; i >= 0; i--) {
+                if (i + 1 < words.length && isTriggerToken(words[i] + words[i + 1])) return { start: i, end: i + 1 };
+                if (isTriggerToken(words[i])) return { start: i, end: i };
+            }
+            return null;
+        }
+
+        const FILLERS = new Set(["है", "का", "नाम", "बताओ", "बोलो", "सुनाओ", "बजाओ", "सुनो", "था", "होगा", "गाना", "गीत", "song", "hai", "ka", "naam", "batao", "bolo", "sunao", "bajao", "suno", "tha", "hoga", "gana", "geet"]);
+
+        function cleanRest(words) {
+            let i = 0;
+            while (i < words.length && FILLERS.has(words[i].toLowerCase())) i++;
+            return words.slice(i, i + MAX_SONG_WORDS);
+        }
+
+        // ================= SPEECH RECOGNITION ENGINE =================
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition = null;
         let isMicRunning = false;
-        let armedAfterGeet = false;
+        let armed = false;
+        let armedUntil = 0;
+        let armTimer = null;
         let isSearchingNow = false;
         let magicTriggeredPlay = false;
         let showPreviewText = true;
@@ -747,11 +788,8 @@
             const dot = document.getElementById('status-dot');
             dot.className = "";
             if (mode) dot.classList.add(mode);
-
             const prev = document.getElementById('secret-heard-preview');
-            if (showPreviewText && textMsg !== undefined) {
-                prev.textContent = textMsg;
-            }
+            if (showPreviewText && textMsg !== undefined) prev.textContent = textMsg;
         }
 
         function toggleHeardPreview() {
@@ -760,133 +798,120 @@
             if (!isMicRunning) startMagicListening();
         }
 
+        function arm() {
+            if (armed && Date.now() < armedUntil) return;
+            armed = true;
+            armedUntil = Date.now() + ARM_WINDOW_MS;
+            setDotState("armed", "Song bolo...");
+            if (navigator.vibrate) navigator.vibrate(50);
+            clearTimeout(armTimer);
+            armTimer = setTimeout(disarm, ARM_WINDOW_MS + 200);
+        }
+
+        function disarm() {
+            armed = false;
+            armedUntil = 0;
+            clearTimeout(armTimer);
+            clearTimeout(debounceTimer);
+            if (!isSearchingNow) setDotState("listening", "");
+        }
+
         function initSpeechEngine() {
             if (!SpeechRecognition) {
-                showHelpToast("Aapke browser me Voice Recognition support nahi hai. Is file ko Google Chrome me open karein.");
+                showHelpToast("Is browser me Voice Recognition support nahi hai. Google Chrome me kholein.");
                 return false;
             }
 
             recognition = new SpeechRecognition();
-            // continuous: false + auto-restart in onend is 10x more reliable on Android Chrome!
-            recognition.continuous = false;
+            recognition.continuous = false;       // + auto-restart in onend = Android par sabse stable
             recognition.interimResults = true;
+            recognition.maxAlternatives = 3;      // trigger galat likha ho to dusre options bhi dekhega
             recognition.lang = 'hi-IN';
 
-            recognition.onstart = function() {
-                setDotState(armedAfterGeet ? "armed" : "listening");
+            recognition.onstart = function () {
+                setDotState(armed ? "armed" : "listening");
             };
 
-            recognition.onresult = function(event) {
+            recognition.onresult = function (event) {
                 if (isSearchingNow) return;
 
-                let interimText = "";
-                let finalText = "";
+                const results = Array.from(event.results);
+                const last = results[results.length - 1];
+                if (!last) return;
+                const isFinal = last.isFinal;
 
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const t = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        finalText += t + " ";
-                    } else {
-                        interimText += t + " ";
-                    }
+                // Har alternative ko try karo; jisme trigger mile wahi use hoga
+                const altCount = Math.max(1, Math.min(3, last.length));
+                let chosenWords = null;
+                let primaryWords = null;
+                for (let a = 0; a < altCount; a++) {
+                    const text = results.map(r => (r[a] || r[0]).transcript).join(" ");
+                    const words = text.replace(/[।,.?!]/g, " ").split(/\s+/).filter(Boolean);
+                    if (a === 0) primaryWords = words;
+                    if (findTrigger(words)) { chosenWords = words; break; }
                 }
+                const words = chosenWords || primaryWords || [];
+                if (!words.length) return;
 
-                const combined = (finalText || interimText).trim();
-                if (!combined) return;
-
-                setDotState(armedAfterGeet ? "armed" : "listening", combined.slice(-18));
-                processSpokenWords(combined, Boolean(finalText.trim()));
+                setDotState(armed ? "armed" : "listening", words.slice(-3).join(" "));
+                handleWords(words, isFinal);
             };
 
-            recognition.onerror = function(event) {
+            recognition.onerror = function (event) {
                 console.log("Speech event:", event.error);
                 if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                     isMicRunning = false;
                     setDotState("", "Mic Blocked");
-                    showHelpToast("⚠️ Mic Permission Blocked! Agar aapne file seedha 'Downloads' se kholi hai, to Android Chrome 'file://' par Mic block kar deta hai. Isko GitHub Pages / Netlify par upload karke link kholein, ya Chrome Settings -> Site Settings -> Microphone Allow karein. (Test karne ke liye Search 🔍 icon par double-tap karein).");
+                    showHelpToast("⚠️ Mic permission blocked hai. Chrome ⋮ → Site settings → Microphone → Allow karein, phir Mic button dubara dabayein. (Test ke liye search 🔍 icon par double-tap karein.)");
                 }
             };
 
-            recognition.onend = function() {
+            recognition.onend = function () {
                 if (isMicRunning && !isSearchingNow) {
-                    setTimeout(() => {
-                        try {
-                            recognition.start();
-                        } catch (e) {}
-                    }, 120);
+                    setTimeout(() => { try { recognition.start(); } catch (e) {} }, 60);
                 }
             };
 
             return true;
         }
 
-        function processSpokenWords(transcript, isFinalResult) {
-            const lower = transcript.toLowerCase();
+        // SIRF trigger ke baad ke shabd (ya trigger-only ke baad agla chhota vaakya) song maane jaate hain.
+        // Baaki saari baatein/shor ignore.
+        function handleWords(words, isFinal) {
+            const hit = findTrigger(words);
 
-            // Check all variations of "geet" in Hindi & Hinglish
-            const triggerWords = ["geet", "गीत", "गित", "git", "geeth", "sangeet", "संगीत"];
-            let matchedTrigger = null;
-            let lastIdx = -1;
-
-            for (let tw of triggerWords) {
-                let idx = lower.lastIndexOf(tw);
-                if (idx > lastIdx) {
-                    lastIdx = idx;
-                    matchedTrigger = tw;
-                }
-            }
-
-            if (matchedTrigger !== null) {
-                let afterGeet = transcript.substring(lastIdx + matchedTrigger.length).trim();
-                // Strip common filler words after 'geet'
-                afterGeet = afterGeet.replace(/^(है|का नाम|बताओ|बोलो|सुनाओ|बजाओ|सुनो|था|होगा|hai|ka naam|batao|bolo|sunao|bajao|tha)\s*/i, "").trim();
-
-                if (afterGeet.length >= 2) {
-                    // Wait until speech is final or pauses for 1.1s so full song name is captured
-                    clearTimeout(debounceTimer);
-                    if (isFinalResult) {
-                        armedAfterGeet = false;
-                        executeMagicSongSearch(afterGeet);
-                    } else {
-                        debounceTimer = setTimeout(() => {
-                            armedAfterGeet = false;
-                            executeMagicSongSearch(afterGeet);
-                        }, 1100);
-                    }
-                } else if (isFinalResult) {
-                    // Only "geet" was spoken! Arm the system to catch the very next sentence as the song name!
-                    armedAfterGeet = true;
-                    setDotState("armed", "Wait song...");
-                    if (navigator.vibrate) navigator.vibrate(50);
-                }
-            } else if (armedAfterGeet && transcript.length >= 2) {
-                // System was armed after "geet", so whatever is spoken now IS the song name!
-                clearTimeout(debounceTimer);
-                if (isFinalResult) {
-                    armedAfterGeet = false;
-                    executeMagicSongSearch(transcript);
+            if (hit) {
+                const rest = cleanRest(words.slice(hit.end + 1));
+                if (rest.length) {
+                    scheduleSearch(rest.join(" "), isFinal);
                 } else {
-                    debounceTimer = setTimeout(() => {
-                        armedAfterGeet = false;
-                        executeMagicSongSearch(transcript);
-                    }, 1100);
+                    arm();
                 }
+            } else if (armed && Date.now() < armedUntil) {
+                const rest = cleanRest(words);
+                if (rest.length) scheduleSearch(rest.join(" "), isFinal);
+            }
+            // trigger nahi mila aur armed bhi nahi -> kuch nahi hota
+        }
+
+        function scheduleSearch(query, isFinal) {
+            clearTimeout(debounceTimer);
+            if (isFinal) {
+                executeMagicSongSearch(query);
+            } else {
+                debounceTimer = setTimeout(() => executeMagicSongSearch(query), PAUSE_MS);
             }
         }
 
-        // Start Mic when user taps "Mic ON" button
         function startMagicListening() {
             document.getElementById('mic-help-toast').style.display = 'none';
 
-            // Unlock mobile audio autoplay on user tap
+            // Mobile autoplay unlock (user tap par)
             if (isPlayerReady && ytPlayer && typeof ytPlayer.mute === 'function') {
                 try {
                     ytPlayer.mute();
                     ytPlayer.playVideo();
-                    setTimeout(() => {
-                        ytPlayer.pauseVideo();
-                        ytPlayer.unMute();
-                    }, 120);
+                    setTimeout(() => { ytPlayer.pauseVideo(); ytPlayer.unMute(); }, 120);
                 } catch (e) {}
             }
 
@@ -896,43 +921,43 @@
 
             isMicRunning = true;
             isSearchingNow = false;
-            armedAfterGeet = false;
+            disarm();
 
-            const btn = document.getElementById('magic-mic-btn');
-            btn.classList.add('armed-mode');
+            document.getElementById('magic-mic-btn').classList.add('armed-mode');
             setDotState("listening", "Ready...");
 
-            try {
-                recognition.start();
-            } catch (e) {}
-
+            try { recognition.start(); } catch (e) {}
             if (navigator.vibrate) navigator.vibrate(60);
         }
 
-        // Backup: Double tap search icon to test song search anytime
+        // Backup test: search icon par double-tap
         function manualSongPrompt() {
             const s = prompt("Test Song Name (jaise: Kesariya, Lollipop Lagelu):");
-            if (s && s.trim()) {
-                executeMagicSongSearch(s.trim());
-            }
+            if (s && s.trim()) executeMagicSongSearch(s.trim());
         }
 
-        // ================= SEARCH & PLAY SONG AT 15 SECONDS =================
+        // ================= SEARCH & PLAY AT 35 SECONDS =================
+        function resumeListening(msg) {
+            isSearchingNow = false;
+            isMicRunning = true;
+            disarm();
+            setDotState("listening", msg);
+            try { if (recognition) recognition.start(); } catch (e) {}
+        }
+
         function executeMagicSongSearch(songName) {
             if (isSearchingNow) return;
             isSearchingNow = true;
             isMicRunning = false;
+            armed = false;
             clearTimeout(debounceTimer);
+            clearTimeout(armTimer);
 
             setDotState("searching", "Searching: " + songName);
-            try {
-                if (recognition) recognition.stop();
-            } catch (e) {}
-
+            try { if (recognition) recognition.stop(); } catch (e) {}
             if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
 
-            const query = songName + " song";
-            const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=6&q=${encodeURIComponent(query)}&type=video&videoEmbeddable=true&key=${YOUTUBE_API_KEY}`;
+            const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=5&regionCode=IN&q=${encodeURIComponent(songName + " song")}&type=video&videoEmbeddable=true&key=${YOUTUBE_API_KEY}`;
 
             fetch(searchUrl)
                 .then(res => res.json())
@@ -944,34 +969,26 @@
                             channel: decodeEntities(item.snippet.channelTitle)
                         }));
                         currentQueueIndex = 0;
-                        loadAndPlayMagicVideo(candidateVideoQueue[0], 15);
+                        loadAndPlayMagicVideo(candidateVideoQueue[0], START_SECONDS);
                     } else {
-                        // Resume listening if nothing found
-                        isSearchingNow = false;
-                        isMicRunning = true;
-                        setDotState("listening", "Retry...");
-                        try { recognition.start(); } catch (e) {}
+                        const why = data && data.error ? "API Err" : "Not found";
+                        resumeListening(why);
                     }
                 })
                 .catch(err => {
                     console.error("Search API error:", err);
-                    isSearchingNow = false;
-                    isMicRunning = true;
-                    setDotState("listening", "Net Err");
-                    try { recognition.start(); } catch (e) {}
+                    resumeListening("Net Err");
                 });
         }
 
-        function loadAndPlayMagicVideo(videoObj, startSec = 15) {
+        function loadAndPlayMagicVideo(videoObj, startSec) {
             magicTriggeredPlay = (startSec > 0);
-            hasSeekedTo15 = false;
+            hasSeeked = false;
 
-            // Update Player UI Metadata
             document.getElementById('p-title').textContent = videoObj.title;
             document.getElementById('p-channel').textContent = videoObj.channel;
             document.getElementById('p-avatar').textContent = (videoObj.channel || "YT").substring(0, 2).toUpperCase();
 
-            // Switch to Player Screen
             document.getElementById('home-view').style.display = 'none';
             document.getElementById('player-view').style.display = 'block';
             window.scrollTo(0, 0);
@@ -979,16 +996,12 @@
             if (isPlayerReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
                 ytPlayer.unMute();
                 ytPlayer.setVolume(100);
-                ytPlayer.loadVideoById({
-                    videoId: videoObj.id,
-                    startSeconds: startSec
-                });
+                ytPlayer.loadVideoById({ videoId: videoObj.id, startSeconds: startSec });
                 ytPlayer.playVideo();
             } else {
-                // Fallback direct iframe if YT API wasn't ready
                 document.getElementById('yt-player-frame').innerHTML = `
-                    <iframe width="100%" height="100%" 
-                        src="https://www.youtube.com/embed/${videoObj.id}?autoplay=1&start=${startSec}&playsinline=1&rel=0" 
+                    <iframe width="100%" height="100%"
+                        src="https://www.youtube.com/embed/${videoObj.id}?autoplay=1&start=${startSec}&playsinline=1&rel=0"
                         frameborder="0" allow="autoplay; encrypted-media" allowfullscreen>
                     </iframe>`;
             }
@@ -1000,6 +1013,7 @@
             loadAndPlayMagicVideo(candidateVideoQueue[0], startSec);
         }
 
+        // Top-left secret zone / Home button: video band, mic wapas sunna shuru
         function backToHomeFeed() {
             if (ytPlayer && typeof ytPlayer.stopVideo === 'function') {
                 try { ytPlayer.stopVideo(); } catch (e) {}
@@ -1007,21 +1021,22 @@
             document.getElementById('player-view').style.display = 'none';
             document.getElementById('home-view').style.display = 'block';
 
-            isSearchingNow = false;
-            armedAfterGeet = false;
-            isMicRunning = true;
-            setDotState("listening", "Ready...");
-
-            try {
-                if (recognition) recognition.start();
-            } catch (e) {}
-
+            if (recognition) {
+                resumeListening("Ready...");
+            }
             if (navigator.vibrate) navigator.vibrate(40);
         }
 
+        // Screen wapas on hone par mic dubara chalu
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && isMicRunning && recognition && !isSearchingNow) {
+                try { recognition.start(); } catch (e) {}
+            }
+        });
+
         function showHelpToast(msg) {
             const t = document.getElementById('mic-help-toast');
-            t.innerHTML = msg;
+            t.textContent = msg;
             t.style.display = 'block';
         }
 
@@ -1030,6 +1045,6 @@
             txt.innerHTML = str;
             return txt.value;
         }
-    </script>
+</script>
 </body>
 </html>
