@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f0f0f">
+    <title>YouTube</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100%;
+            min-height: 100%;
+            background-color: #0f0f0f;
+            color: #f1f1f1;
+            font-family: 'Roboto', Arial, sans-serif;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* ================= STICKY TOP HEADER ================= */
+        .yt-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background-color: rgba(15, 15, 15, 0.98);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+        }
+
+        .yt-logo-area {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .yt-logo-box {
+            width: 29px;
+            height: 20px;
+            background-color: #ff0000;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .yt-logo-box::after {
+            content: "";
+            border-style: solid;
+            border-width: 4px 0 4px 7px;
+            border-color: transparent transparent transparent #ffffff;
+            margin-left: 1px;
+        }
+
+        .yt-logo-title {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.7px;
+            color: #fff;
+        }
+
+        /* Secret dot right next to YouTube text */
+        #status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: #444;
+            margin-left: 3px;
+            margin-top: -8px;
+            transition: all 0.2s ease;
+        }
+        #status-dot.listening {
+            background-color: #00e676;
+            box-shadow: 0 0 6px #00e676;
+        }
+        #status-dot.armed {
+            background-color: #ff9100;
+            box-shadow: 0 0 8px #ff9100;
+            transform: scale(1.25);
+        }
+        #status-dot.searching {
+            background-color: #ff1744;
+            box-shadow: 0 0 8px #ff1744;
+        }
+
+        /* Faint live word preview for magician (can be hidden by tapping logo) */
+        #secret-heard-preview {
+            font-size: 9px;
+            color: #555;
+            max-width: 95px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-left: 4px;
+        }
+
+        .yt-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Mic button visible at start; blends into a real-looking Cast/Mic icon once ON */
+        #magic-mic-btn {
+            background: #272727;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 16px;
+            padding: 5px 11px;
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+        #magic-mic-btn.armed-mode {
+            background: transparent;
+            border: none;
+            padding: 2px;
+            color: #fff;
+        }
+        #magic-mic-btn.armed-mode span {
+            display: none;
+        }
+
+        .notif-bell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .notif-badge {
+            position: absolute;
+            top: -4px;
+            right: -6px;
+            background-color: #e60000;
+            color: #fff;
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 1px 4px;
+            border-radius: 8px;
+        }
+
+        /* ================= CATEGORY CHIPS / TABS ================= */
+        .yt-tabs-bar {
+            position: sticky;
+            top: 44px;
+            z-index: 49;
+            background-color: rgba(15, 15, 15, 0.98);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px 10px 12px;
+            overflow-x: auto;
+            border-bottom: 1px solid #222;
+            scrollbar-width: none;
+        }
+        .yt-tabs-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .yt-chip {
+            background-color: #272727;
+            color: #f1f1f1;
+            font-size: 13.5px;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 8px;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .yt-chip.active {
+            background-color: #f1f1f1;
+            color: #0f0f0f;
+        }
+
+        /* ================= SCROLLABLE FEED ================= */
+        #home-view {
+            width: 100%;
+            padding-bottom: 65px;
+        }
+
+        .video-feed-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .yt-video-card {
+            margin-bottom: 18px;
+            cursor: pointer;
+        }
+
+        .yt-thumb-box {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background-color: #1a1a1a;
+            overflow: hidden;
+        }
+
+        .yt-thumb-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .yt-duration {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            font-size: 11.5px;
+            font-weight: 500;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        .yt-card-info {
+            display: flex;
+            align-items: flex-start;
+            padding: 10px 12px 4px 12px;
+            gap: 12px;
+        }
+
+        .yt-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #333;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: #fff;
+            overflow: hidden;
+        }
+        .yt-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .yt-meta {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .yt-v-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #f1f1f1;
+            line-height: 1.35;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .yt-v-sub {
+            font-size: 12px;
+            color: #aaa;
+            line-height: 1.3;
+        }
+
+        .yt-dots {
+            color: #aaa;
+            font-size: 16px;
+            padding: 2px 4px;
+        }
+
+        /* ================= BOTTOM NAVIGATION BAR ================= */
+        .yt-bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background-color: #0f0f0f;
+            border-top: 1px solid #222;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 60;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #f1f1f1;
+            font-size: 10px;
+            gap: 3px;
+            cursor: pointer;
+        }
+
+        .nav-plus {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 1.5px solid #f1f1f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 300;
+        }
+
+        /* ================= PLAYER VIEW (SCROLLABLE) ================= */
+        #player-view {
+            display: none;
+            width: 100%;
+            min-height: 100vh;
+            background-color: #0f0f0f;
+            padding-bottom: 40px;
+        }
+
+        .sticky-player-wrap {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background-color: #000;
+            z-index: 100;
+        }
+
+        #yt-player-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Secret Back Button on Top-Left of Video Player */
+        #secret-reset-zone {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 65px;
+            height: 55px;
+            z-index: 200;
+            background: transparent;
+        }
+
+        .p-details-box {
+            padding: 12px 14px;
+        }
+
+        #p-title {
+            font-size: 17.5px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1.3;
+            margin-bottom: 6px;
+        }
+
+        .p-subtext {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 14px;
+        }
+
+        .p-channel-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .p-ch-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .p-sub-btn {
+            background-color: #f1f1f1;
+            color: #0f0f0f;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 7px 15px;
+            border-radius: 18px;
+        }
+
+        .p-actions-scroll {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
+            scrollbar-width: none;
+        }
+        .p-actions-scroll::-webkit-scrollbar {
+            display: none;
+        }
+
+        .p-pill {
+            background-color: #272727;
+            color: #f1f1f1;
+            font-size: 12.5px;
+            font-weight: 500;
+            padding: 7px 13px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .p-comments-box {
+            background-color: #1f1f1f;
+            border-radius: 12px;
+            padding: 11px 13px;
+            margin-bottom: 16px;
+        }
+
+        .p-comments-head {
+            font-size: 13.5px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .p-comments-head span {
+            color: #aaa;
+            font-weight: 400;
+            font-size: 12px;
+        }
+
+        .p-comment-line {
+            font-size: 12.5px;
+            color: #ddd;
+            line-height: 1.35;
+        }
+
+        /* Help Alert Modal if opened from local file:// without mic permission */
+        #mic-help-toast {
+            display: none;
+            position: fixed;
+            bottom: 60px;
+            left: 12px;
+            right: 12px;
+            background: #222;
+            border: 1px solid #ff5252;
+            color: #fff;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 12.5px;
+            z-index: 300;
+            line-height: 1.4;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.7);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Secret Top-Left Corner Zone to Exit Video & Reset Magic -->
+    <div id="secret-reset-zone" onclick="backToHomeFeed()"></div>
+
+    <!-- ================= HOME VIEW ================= -->
+    <div id="home-view">
+        <!-- Sticky Header -->
+        <div class="yt-header">
+            <div class="yt-logo-area" onclick="toggleHeardPreview()">
+                <div class="yt-logo-box"></div>
+                <div class="yt-logo-title">YouTube</div>
+                <div id="status-dot"></div>
+                <div id="secret-heard-preview"></div>
+            </div>
+
+            <div class="yt-header-actions">
+                <!-- Mic Button -->
+                <button id="magic-mic-btn" onclick="startMagicListening()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                    <span id="mic-btn-text">Mic ON</span>
+                </button>
+
+                <!-- Notification Bell -->
+                <div class="notif-bell" onclick="startMagicListening()">
+                    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span class="notif-badge">9+</span>
+                </div>
+
+                <!-- Search Icon (Also triggers or manual test on double click) -->
+                <div onclick="startMagicListening()" ondblclick="manualSongPrompt()" style="cursor:pointer; display:flex;">
+                    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <line x1="20" y1="20" x2="16.35" y2="16.35"></line>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Chips -->
+        <div class="yt-tabs-bar">
+            <div class="yt-chip active" onclick="filterFeed('all', this)">All</div>
+            <div class="yt-chip" onclick="filterFeed('music', this)">Music</div>
+            <div class="yt-chip" onclick="filterFeed('bhojpuri', this)">Bhojpuri cinema</div>
+            <div class="yt-chip" onclick="filterFeed('hindi', this)">Hindi Pop</div>
+            <div class="yt-chip" onclick="filterFeed('live', this)">Live</div>
+            <div class="yt-chip" onclick="filterFeed('gaming', this)">Gaming</div>
+            <div class="yt-chip" onclick="filterFeed('comedy', this)">Comedy</div>
+        </div>
+
+        <!-- Scrollable Video Feed -->
+        <div id="home-feed-container" class="video-feed-list"></div>
+    </div>
+
+    <!-- ================= PLAYER VIEW ================= -->
+    <div id="player-view">
+        <div class="sticky-player-wrap">
+            <div id="yt-player-frame"></div>
+        </div>
+
+        <div class="p-details-box">
+            <div id="p-title">Loading Song...</div>
+            <div class="p-subtext" id="p-stats">1.8M views • 2 months ago &nbsp;#Music &nbsp;<strong>...more</strong></div>
+
+            <div class="p-channel-row">
+                <div class="p-ch-left">
+                    <div class="yt-avatar" id="p-avatar" style="background:#cc0000;">YT</div>
+                    <div>
+                        <div id="p-channel" style="font-size:14px; font-weight:600; color:#fff;">Music Channel</div>
+                        <div style="font-size:11.5px; color:#aaa;">14.2M subscribers</div>
+                    </div>
+                </div>
+                <div class="p-sub-btn">Subscribe</div>
+            </div>
+
+            <div class="p-actions-scroll">
+                <div class="p-pill">👍 142K &nbsp;|&nbsp; 👎</div>
+                <div class="p-pill">↗ Share</div>
+                <div class="p-pill">✨ Ask</div>
+                <div class="p-pill">⬇ Download</div>
+                <div class="p-pill">🔖 Save</div>
+            </div>
+
+            <div class="p-comments-box">
+                <div class="p-comments-head">Comments <span>19K</span></div>
+                <div class="p-comment-line">🎧 Anyone listening to this masterpiece in 2026? Pure goosebumps! 🔥❤️</div>
+            </div>
+        </div>
+
+        <!-- Related Videos Below Player (Scrollable) -->
+        <div id="related-feed-container" class="video-feed-list"></div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="yt-bottom-nav" id="bottom-nav">
+        <div class="nav-item" onclick="backToHomeFeed()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span>Home</span>
+        </div>
+        <div class="nav-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/></svg>
+            <span>Shorts</span>
+        </div>
+        <div class="nav-item">
+            <div class="nav-plus">+</div>
+        </div>
+        <div class="nav-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+            <span>Subscriptions</span>
+        </div>
+        <div class="nav-item">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>You</span>
+        </div>
+    </div>
+
+    <!-- Mic Permission Warning Toast -->
+    <div id="mic-help-toast"></div>
+
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        const YOUTUBE_API_KEY = "AIzaSyC0JlNaWVd3nCulfXhfelQ73kQgnO-O1xg";
+
+        // Rich pre-loaded real Indian videos so scrolling works immediately & looks 100% real
+        const defaultVideos = [
+            { id: "RLzC55ai0eo", title: "Heeriye (Official Video) Jasleen Royal ft Arijit Singh | Dulquer Salmaan", channel: "Jasleen Royal", views: "385M views • 1 year ago", duration: "3:19", color: "#e91e63" },
+            { id: "BddP6PYo2gs", title: "Kesariya - Brahmāstra | Ranbir Kapoor | Alia Bhatt | Pritam | Arijit Singh", channel: "Sony Music India", views: "540M views • 2 years ago", duration: "4:28", color: "#ff5722" },
+            { id: "lOKASgtr6kU", title: "I Spent 100 Hours Inside The Pyramids!", channel: "MrBeast", views: "272M views • 1 year ago", duration: "21:40", color: "#00b0ff" },
+            { id: "vJQMhj6WYZA", title: "Aaj Ki Raat | Stree 2 | Tamannaah Bhatia | Sachin-Jigar | Madhubanti | Divya", channel: "Saregama Music", views: "610M views • 5 months ago", duration: "3:48", color: "#9c27b0" },
+            { id: "f3FFOBrMmdg", title: "Mehabooba Video Song (Hindi) | KGF Chapter 2 | RockingStar Yash | Prashanth Neel", channel: "MRT Music", views: "241M views • 2 years ago", duration: "4:03", color: "#d32f2f" },
+            { id: "w8LcxY43N5Y", title: "Pal (Female Version) - Lyrical Video | Jalebi | Shreya Ghoshal | Rhea, Varun", channel: "SonyMusicIndiaVEVO", views: "112M views • 5 years ago", duration: "4:12", color: "#3f51b5" },
+            { id: "gvyUuxdRdR4", title: "Raataan Lambiyan - Official Video | Shershaah | Sidharth - Kiara | Tanishk B, Jubin N", channel: "Sony Music India", views: "890M views • 3 years ago", duration: "3:50", color: "#009688" },
+            { id: "kJQP7kiw5Fk", title: "Apna Bana Le - Bhediya | Varun Dhawan, Kriti Sanon| Sachin-Jigar, Arijit Singh", channel: "Zee Music Company", views: "420M views • 1 year ago", duration: "4:21", color: "#ff9800" },
+            { id: "nfWlot6h_JM", title: "Pawan Singh - लॉलीपॉप लागेलू (Lollipop Lagelu) | Bhojpuri Superhit Song", channel: "Wave Music", views: "235M views • 6 years ago", duration: "4:15", color: "#795548" },
+            { id: "60ItHLz5WEA", title: "Tujhe Kitna Chahne Lage | Kabir Singh | Mithoon Feat. Arijit Singh | Shahid K, Kiara A", channel: "T-Series", views: "310M views • 4 years ago", duration: "4:44", color: "#e53935" }
+        ];
+
+        let allFeedVideos = [...defaultVideos];
+        let ytPlayer = null;
+        let isPlayerReady = false;
+        let candidateVideoQueue = [];
+        let currentQueueIndex = 0;
+        let hasSeekedTo15 = false;
+
+        // Render Feed Cards
+        function renderVideoList(containerId, videoArray) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = videoArray.map(v => {
+                const initials = (v.channel || "YT").substring(0, 2).toUpperCase();
+                const thumbUrl = v.thumb || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`;
+                return `
+                <div class="yt-video-card" onclick="playSpecificVideo('${v.id}', '${escapeQuotes(v.title)}', '${escapeQuotes(v.channel)}', 0)">
+                    <div class="yt-thumb-box">
+                        <img src="${thumbUrl}" loading="lazy" alt="Thumb">
+                        <div class="yt-duration">${v.duration || '3:54'}</div>
+                    </div>
+                    <div class="yt-card-info">
+                        <div class="yt-avatar" style="background:${v.color || '#d32f2f'}">${initials}</div>
+                        <div class="yt-meta">
+                            <div class="yt-v-title">${v.title}</div>
+                            <div class="yt-v-sub">${v.channel} • ${v.views || '1.4M views • 3 weeks ago'}</div>
+                        </div>
+                        <div class="yt-dots">⋮</div>
+                    </div>
+                </div>`;
+            }).join("");
+        }
+
+        function escapeQuotes(str) {
+            return (str || "").replace(/'/g, "\'").replace(/"/g, "&quot;");
+        }
+
+        // Load initial feed immediately & then fetch live YouTube trending videos in background
+        renderVideoList('home-feed-container', allFeedVideos);
+        renderVideoList('related-feed-container', allFeedVideos.slice().reverse());
+
+        function fetchLiveYouTubeFeed(queryTopic = "") {
+            let url = "";
+            if (!queryTopic || queryTopic === "all") {
+                url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=IN&maxResults=18&key=${YOUTUBE_API_KEY}`;
+            } else {
+                url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(queryTopic + " songs hindi bhojpuri")}&type=video&videoEmbeddable=true&maxResults=15&key=${YOUTUBE_API_KEY}`;
+            }
+
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.items && data.items.length > 0) {
+                        const colors = ["#e53935", "#8e24aa", "#1e88e5", "#00897b", "#f4511e", "#3949ab"];
+                        const fetched = data.items.map((item, i) => {
+                            const vid = (typeof item.id === 'object') ? item.id.videoId : item.id;
+                            return {
+                                id: vid,
+                                title: decodeEntities(item.snippet.title),
+                                channel: decodeEntities(item.snippet.channelTitle),
+                                thumb: item.snippet.thumbnails?.high?.url || `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
+                                views: `${Math.floor(Math.random() * 9 + 1)}.${Math.floor(Math.random() * 9)}M views • ${Math.floor(Math.random() * 11 + 1)} months ago`,
+                                duration: `${Math.floor(Math.random() * 3 + 3)}:${Math.floor(Math.random() * 49 + 10)}`,
+                                color: colors[i % colors.length]
+                            };
+                        }).filter(v => v.id);
+
+                        if (fetched.length > 0) {
+                            allFeedVideos = [...fetched, ...defaultVideos];
+                            renderVideoList('home-feed-container', allFeedVideos);
+                            renderVideoList('related-feed-container', allFeedVideos.slice(3, 15));
+                        }
+                    }
+                })
+                .catch(e => console.log("Live feed note:", e));
+        }
+
+        // Load real trending feed on startup
+        fetchLiveYouTubeFeed("all");
+
+        function filterFeed(category, chipEl) {
+            document.querySelectorAll('.yt-chip').forEach(c => c.classList.remove('active'));
+            chipEl.classList.add('active');
+            fetchLiveYouTubeFeed(category);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ================= YOUTUBE IFRAME PLAYER SETUP =================
+        function onYouTubeIframeAPIReady() {
+            ytPlayer = new YT.Player('yt-player-frame', {
+                height: '100%',
+                width: '100%',
+                videoId: 'BddP6PYo2gs',
+                playerVars: {
+                    'autoplay': 0,
+                    'controls': 1,
+                    'rel': 0,
+                    'playsinline': 1,
+                    'modestbranding': 1
+                },
+                events: {
+                    'onReady': function() {
+                        isPlayerReady = true;
+                    },
+                    'onStateChange': function(event) {
+                        // Reinforce 15-second jump when magic song starts playing
+                        if (event.data === YT.PlayerState.PLAYING && !hasSeekedTo15 && magicTriggeredPlay) {
+                            hasSeekedTo15 = true;
+                            const cur = ytPlayer.getCurrentTime();
+                            if (cur < 13) {
+                                ytPlayer.seekTo(15, true);
+                            }
+                        }
+                    },
+                    'onError': function(err) {
+                        // If video #1 blocks embedding (Error 101/150), immediately play next result!
+                        console.log("Player fallback triggered:", err.data);
+                        if (currentQueueIndex + 1 < candidateVideoQueue.length) {
+                            currentQueueIndex++;
+                            const nextVid = candidateVideoQueue[currentQueueIndex];
+                            loadAndPlayMagicVideo(nextVid, 15);
+                        }
+                    }
+                }
+            });
+        }
+
+        // ================= ROBUST SPEECH RECOGNITION ENGINE =================
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isMicRunning = false;
+        let armedAfterGeet = false;
+        let isSearchingNow = false;
+        let magicTriggeredPlay = false;
+        let showPreviewText = true;
+        let debounceTimer = null;
+
+        function setDotState(mode, textMsg) {
+            const dot = document.getElementById('status-dot');
+            dot.className = "";
+            if (mode) dot.classList.add(mode);
+
+            const prev = document.getElementById('secret-heard-preview');
+            if (showPreviewText && textMsg !== undefined) {
+                prev.textContent = textMsg;
+            }
+        }
+
+        function toggleHeardPreview() {
+            showPreviewText = !showPreviewText;
+            document.getElementById('secret-heard-preview').style.display = showPreviewText ? 'block' : 'none';
+            if (!isMicRunning) startMagicListening();
+        }
+
+        function initSpeechEngine() {
+            if (!SpeechRecognition) {
+                showHelpToast("Aapke browser me Voice Recognition support nahi hai. Is file ko Google Chrome me open karein.");
+                return false;
+            }
+
+            recognition = new SpeechRecognition();
+            // continuous: false + auto-restart in onend is 10x more reliable on Android Chrome!
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'hi-IN';
+
+            recognition.onstart = function() {
+                setDotState(armedAfterGeet ? "armed" : "listening");
+            };
+
+            recognition.onresult = function(event) {
+                if (isSearchingNow) return;
+
+                let interimText = "";
+                let finalText = "";
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const t = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalText += t + " ";
+                    } else {
+                        interimText += t + " ";
+                    }
+                }
+
+                const combined = (finalText || interimText).trim();
+                if (!combined) return;
+
+                setDotState(armedAfterGeet ? "armed" : "listening", combined.slice(-18));
+                processSpokenWords(combined, Boolean(finalText.trim()));
+            };
+
+            recognition.onerror = function(event) {
+                console.log("Speech event:", event.error);
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    isMicRunning = false;
+                    setDotState("", "Mic Blocked");
+                    showHelpToast("⚠️ Mic Permission Blocked! Agar aapne file seedha 'Downloads' se kholi hai, to Android Chrome 'file://' par Mic block kar deta hai. Isko GitHub Pages / Netlify par upload karke link kholein, ya Chrome Settings -> Site Settings -> Microphone Allow karein. (Test karne ke liye Search 🔍 icon par double-tap karein).");
+                }
+            };
+
+            recognition.onend = function() {
+                if (isMicRunning && !isSearchingNow) {
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (e) {}
+                    }, 120);
+                }
+            };
+
+            return true;
+        }
+
+        function processSpokenWords(transcript, isFinalResult) {
+            const lower = transcript.toLowerCase();
+
+            // Check all variations of "geet" in Hindi & Hinglish
+            const triggerWords = ["geet", "गीत", "गित", "git", "geeth", "sangeet", "संगीत"];
+            let matchedTrigger = null;
+            let lastIdx = -1;
+
+            for (let tw of triggerWords) {
+                let idx = lower.lastIndexOf(tw);
+                if (idx > lastIdx) {
+                    lastIdx = idx;
+                    matchedTrigger = tw;
+                }
+            }
+
+            if (matchedTrigger !== null) {
+                let afterGeet = transcript.substring(lastIdx + matchedTrigger.length).trim();
+                // Strip common filler words after 'geet'
+                afterGeet = afterGeet.replace(/^(है|का नाम|बताओ|बोलो|सुनाओ|बजाओ|सुनो|था|होगा|hai|ka naam|batao|bolo|sunao|bajao|tha)\s*/i, "").trim();
+
+                if (afterGeet.length >= 2) {
+                    // Wait until speech is final or pauses for 1.1s so full song name is captured
+                    clearTimeout(debounceTimer);
+                    if (isFinalResult) {
+                        armedAfterGeet = false;
+                        executeMagicSongSearch(afterGeet);
+                    } else {
+                        debounceTimer = setTimeout(() => {
+                            armedAfterGeet = false;
+                            executeMagicSongSearch(afterGeet);
+                        }, 1100);
+                    }
+                } else if (isFinalResult) {
+                    // Only "geet" was spoken! Arm the system to catch the very next sentence as the song name!
+                    armedAfterGeet = true;
+                    setDotState("armed", "Wait song...");
+                    if (navigator.vibrate) navigator.vibrate(50);
+                }
+            } else if (armedAfterGeet && transcript.length >= 2) {
+                // System was armed after "geet", so whatever is spoken now IS the song name!
+                clearTimeout(debounceTimer);
+                if (isFinalResult) {
+                    armedAfterGeet = false;
+                    executeMagicSongSearch(transcript);
+                } else {
+                    debounceTimer = setTimeout(() => {
+                        armedAfterGeet = false;
+                        executeMagicSongSearch(transcript);
+                    }, 1100);
+                }
+            }
+        }
+
+        // Start Mic when user taps "Mic ON" button
+        function startMagicListening() {
+            document.getElementById('mic-help-toast').style.display = 'none';
+
+            // Unlock mobile audio autoplay on user tap
+            if (isPlayerReady && ytPlayer && typeof ytPlayer.mute === 'function') {
+                try {
+                    ytPlayer.mute();
+                    ytPlayer.playVideo();
+                    setTimeout(() => {
+                        ytPlayer.pauseVideo();
+                        ytPlayer.unMute();
+                    }, 120);
+                } catch (e) {}
+            }
+
+            if (!recognition) {
+                if (!initSpeechEngine()) return;
+            }
+
+            isMicRunning = true;
+            isSearchingNow = false;
+            armedAfterGeet = false;
+
+            const btn = document.getElementById('magic-mic-btn');
+            btn.classList.add('armed-mode');
+            setDotState("listening", "Ready...");
+
+            try {
+                recognition.start();
+            } catch (e) {}
+
+            if (navigator.vibrate) navigator.vibrate(60);
+        }
+
+        // Backup: Double tap search icon to test song search anytime
+        function manualSongPrompt() {
+            const s = prompt("Test Song Name (jaise: Kesariya, Lollipop Lagelu):");
+            if (s && s.trim()) {
+                executeMagicSongSearch(s.trim());
+            }
+        }
+
+        // ================= SEARCH & PLAY SONG AT 15 SECONDS =================
+        function executeMagicSongSearch(songName) {
+            if (isSearchingNow) return;
+            isSearchingNow = true;
+            isMicRunning = false;
+            clearTimeout(debounceTimer);
+
+            setDotState("searching", "Searching: " + songName);
+            try {
+                if (recognition) recognition.stop();
+            } catch (e) {}
+
+            if (navigator.vibrate) navigator.vibrate([80, 50, 80]);
+
+            const query = songName + " song";
+            const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=6&q=${encodeURIComponent(query)}&type=video&videoEmbeddable=true&key=${YOUTUBE_API_KEY}`;
+
+            fetch(searchUrl)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.items && data.items.length > 0) {
+                        candidateVideoQueue = data.items.map(item => ({
+                            id: item.id.videoId,
+                            title: decodeEntities(item.snippet.title),
+                            channel: decodeEntities(item.snippet.channelTitle)
+                        }));
+                        currentQueueIndex = 0;
+                        loadAndPlayMagicVideo(candidateVideoQueue[0], 15);
+                    } else {
+                        // Resume listening if nothing found
+                        isSearchingNow = false;
+                        isMicRunning = true;
+                        setDotState("listening", "Retry...");
+                        try { recognition.start(); } catch (e) {}
+                    }
+                })
+                .catch(err => {
+                    console.error("Search API error:", err);
+                    isSearchingNow = false;
+                    isMicRunning = true;
+                    setDotState("listening", "Net Err");
+                    try { recognition.start(); } catch (e) {}
+                });
+        }
+
+        function loadAndPlayMagicVideo(videoObj, startSec = 15) {
+            magicTriggeredPlay = (startSec > 0);
+            hasSeekedTo15 = false;
+
+            // Update Player UI Metadata
+            document.getElementById('p-title').textContent = videoObj.title;
+            document.getElementById('p-channel').textContent = videoObj.channel;
+            document.getElementById('p-avatar').textContent = (videoObj.channel || "YT").substring(0, 2).toUpperCase();
+
+            // Switch to Player Screen
+            document.getElementById('home-view').style.display = 'none';
+            document.getElementById('player-view').style.display = 'block';
+            window.scrollTo(0, 0);
+
+            if (isPlayerReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+                ytPlayer.unMute();
+                ytPlayer.setVolume(100);
+                ytPlayer.loadVideoById({
+                    videoId: videoObj.id,
+                    startSeconds: startSec
+                });
+                ytPlayer.playVideo();
+            } else {
+                // Fallback direct iframe if YT API wasn't ready
+                document.getElementById('yt-player-frame').innerHTML = `
+                    <iframe width="100%" height="100%" 
+                        src="https://www.youtube.com/embed/${videoObj.id}?autoplay=1&start=${startSec}&playsinline=1&rel=0" 
+                        frameborder="0" allow="autoplay; encrypted-media" allowfullscreen>
+                    </iframe>`;
+            }
+        }
+
+        function playSpecificVideo(id, title, channel, startSec = 0) {
+            candidateVideoQueue = [{ id, title, channel }];
+            currentQueueIndex = 0;
+            loadAndPlayMagicVideo(candidateVideoQueue[0], startSec);
+        }
+
+        function backToHomeFeed() {
+            if (ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+                try { ytPlayer.stopVideo(); } catch (e) {}
+            }
+            document.getElementById('player-view').style.display = 'none';
+            document.getElementById('home-view').style.display = 'block';
+
+            isSearchingNow = false;
+            armedAfterGeet = false;
+            isMicRunning = true;
+            setDotState("listening", "Ready...");
+
+            try {
+                if (recognition) recognition.start();
+            } catch (e) {}
+
+            if (navigator.vibrate) navigator.vibrate(40);
+        }
+
+        function showHelpToast(msg) {
+            const t = document.getElementById('mic-help-toast');
+            t.innerHTML = msg;
+            t.style.display = 'block';
+        }
+
+        function decodeEntities(str) {
+            const txt = document.createElement('textarea');
+            txt.innerHTML = str;
+            return txt.value;
+        }
+    </script>
+</body>
+</html>
